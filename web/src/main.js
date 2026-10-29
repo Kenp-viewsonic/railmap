@@ -32,12 +32,29 @@ if (!token) {
 
 mapboxgl.accessToken = token;
 
-const DATA = import.meta.env.VITE_DATA_URL || '/data';
-
+// 数据目录：用 Vite 注入的 BASE_URL（本项目配为 './'）拼相对路径。
+// 原实现硬编码绝对路径 '/data'，在 GitHub Pages 的子路径站点
+// （https://<user>.github.io/railmap/）下会解析成 /data/... 而 404，
+// 表现为页面全白。相对路径由 fetch 基于文档地址解析，本地与子路径部署都能命中。
+const DATA = import.meta.env.VITE_DATA_URL || `${import.meta.env.BASE_URL}data`;
 async function loadJSON(name) {
-  const res = await fetch(`${DATA}/${name}`);
-  if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
+  const url = `${DATA}/${name}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${name}: HTTP ${res.status}  (${url})`);
   return res.json();
+}
+
+// 启动期任何未捕获错误都在页面上写明原因，不留白屏
+window.addEventListener('error', e => showFatal(e.error || e.message));
+window.addEventListener('unhandledrejection', e => showFatal(e.reason));
+function showFatal(err) {
+  const msg = (err && (err.stack || err.message)) || String(err);
+  if (document.getElementById('fatal')) return;
+  const el = document.createElement('div');
+  el.id = 'fatal';
+  el.style.cssText = 'position:fixed;inset:0;z-index:99;background:#fff;padding:24px;overflow:auto;font:12px/1.6 ui-monospace,Consolas,monospace;white-space:pre-wrap;';
+  el.textContent = `加载失败\n\n${msg}\n\n数据目录: ${DATA}`;
+  document.body.appendChild(el);
 }
 
 const [network, linesGeo, stopsGeo] = await Promise.all([
