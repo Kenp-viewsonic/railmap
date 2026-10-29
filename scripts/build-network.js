@@ -35,6 +35,9 @@ const NETWORKS = {
   '嘉兴有轨电车': { city: '嘉兴', kind: 'tram' },
   '松江有轨电车': { city: '上海', kind: 'tram' },
   '上海浦东机场旅客捷运系统': { city: '上海', kind: 'maglev' },
+  '杭州地铁': { city: '杭州', kind: 'metro' },
+  'Hangzhou Metro': { city: '杭州', kind: 'metro' },
+  '杭海城际': { city: '海宁', kind: 'regional' },
 };
 
 // ---- 工具 ----
@@ -46,10 +49,13 @@ const distM = (a, b) => {
 };
 
 // 站名归一化：去括号、去后缀、去前缀、去空格，用于换乘合并
+// 注意：'火车东站/火车南站/火车北站'是完整站名（杭州地铁叫法），不能被 '站$'+'^火车'
+// 清洗成空串——空串会让所有此类站共用同一个归一化键，别名表互相覆盖（火车东站→杭州东
+// 与火车南站→杭州南 的键都变成 ''，后者覆盖前者）。'东/南/西/北' 单字键可保证别名唯一。
 const normName = n => (n || '')
   .replace(/[（(].*?[)）]/g, '')
-  .replace(/火车站$|高铁站$|火车东站$|火车南站$|火车北站$|站$/, '')
-  .replace(/^高铁|^火车/, '') // "高铁苏州北" vs "苏州北"、"火车东站" vs "东"
+  .replace(/火车站$|高铁站$|站$/, '')
+  .replace(/^高铁/, '')
   .replace(/[\s·・]/g, '')
   .trim();
 
@@ -194,6 +200,7 @@ const normName = n => (n || '')
       else if (/常州地铁|Changzhou Metro/.test(hay)) meta = NETWORKS['常州地铁'];
       else if (/苏州高新[区]?有轨电车/.test(hay)) meta = NETWORKS['苏州高新区有轨电车'];
       else if (/嘉善|枫南/.test(hay)) meta = NETWORKS['嘉善地铁'];
+      else if (/杭海城际/.test(hay)) meta = NETWORKS['杭海城际'];
     }
     if (!meta) continue; // 非目标城市
     const ref = t.ref || t.name;
@@ -227,13 +234,17 @@ const normName = n => (n || '')
 
   // ============ 2. 国铁径道聚合 ============
   // way 按 name 聚合成"线路"；usage=main 的干线。类别由 curated/line-meta.json 人工映射。
-  const railLines = new Map(); // name -> {ways: [], category}
+  // railWayAliases：同一条线的不同名称段并入主线（如笕杭线=沪昆线杭州站-笕桥段）。
+  const wayAlias = Object.fromEntries(Object.entries(curated.railWayAliases || {})
+    .filter(([k]) => !k.startsWith('_')));
+  const railLines = new Map(); // name -> {ways: [], tags}
   for (const el of railEls) {
     if (el.type !== 'way') continue;
     const t = el.tags || {};
     if (t.railway !== 'rail') continue;
-    const name = t.name || t.ref;
+    let name = t.name || t.ref;
     if (!name) continue; // 无名支线/联络线，一期跳过
+    name = wayAlias[name] || name; // 别名段并入主线
     if (!railLines.has(name)) railLines.set(name, { ways: [], tags: t });
     railLines.get(name).ways.push(el);
   }
@@ -270,6 +281,54 @@ const normName = n => (n || '')
     railStations.push({ id: el.id, name: t.name, lat, lon });
   }
   console.log(`\n[rail] 国铁车站候选: ${railStations.length}`);
+
+  // 国铁车站白名单（curated.railStationWhitelist）：
+  // 并行线路区段（京沪线/沪宁城际/京沪高铁在苏州-昆山段完全并行，站到各线距离都 <150m）
+  // 靠距离吸附无法区分"沿线站"与"从旁经过的站"（阳澄湖站距京沪高铁仅 120m，但它只是
+  // 沪宁城际的站）。白名单来自维基百科线路条目，构建时只吸附名单内的站。
+  // 匹配：站名精确 → 归一化（去后缀/空格）双级；未配置白名单的线路退回纯距离吸附。
+  const whitelistByLine = Object.fromEntries(Object.entries(curated.railStationWhitelist || {})
+    .filter(([k]) => !k.startsWith('_')));
+  const wlSets = new Map(); // lineName -> { exact:Set, norm:Set }
+  for (const [line, names] of Object.entries(whitelistByLine)) {
+    wlSets.set(line, {
+      exact: new Set(names),
+      norm: new Set(names.map(n => normName(n))),
+    });
+  }
+  const wlAllows = (lineName, stationName) => {
+    const wl = wlSets.get(lineName);
+    if (!wl) return true; // 无白名单 = 不过滤
+    if (wl.exact.has(stationName)) return true;
+    return wl.norm.has(normName(stationName));
+  };
+
+  // 白名单站补吸：少数真国铁站在 OSM 被标成 station=subway（正仪=京沪线货运站+苏州11号线、
+  // 周泾巷=京沪线无锡段），纯国铁候选里找不到。对白名单站名回退到 subway 标注站，
+  // 但要求距该线径道 <300m（真国铁站贴着径道；同名地铁站离径道远）。
+  // 注意：白名单本身必须干净——若把纯地铁站名写进白名单（如"斜桥"），此回退会把它误吸上来。
+  const subwayStations = []; // {id, name, lat, lon}
+  for (const el of stationEls) {
+    const t = el.tags || {};
+    if (!t.name || t.railway !== 'station' || t.station !== 'subway') continue;
+    const lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
+    if (lat == null) continue;
+    subwayStations.push({ id: el.id, name: t.name, lat, lon });
+  }
+  const railStationNames = new Set(railStations.map(s => s.name));
+  const railStationNorms = new Set(railStations.map(s => normName(s.name)));
+  const backfilled = [];
+  for (const [line, names] of Object.entries(whitelistByLine)) {
+    for (const nm of names) {
+      if (railStationNames.has(nm) || railStationNorms.has(normName(nm))) continue; // 已有纯国铁节点
+      const cand = subwayStations.find(s => s.name === nm || normName(s.name) === normName(nm));
+      if (cand) {
+        railStations.push(cand);
+        backfilled.push(`${nm}→${line}`);
+      }
+    }
+  }
+  if (backfilled.length) console.log(`[rail] 白名单站从 subway 标注补吸: ${backfilled.join(' / ')}`);
 
   // 点到折线的最短距离 + 投影位置（用于排序）
   function projectOnPolyline(pt, pts) {
@@ -482,6 +541,7 @@ const normName = n => (n || '')
     const repReversed = new Map();
     repSeq.forEach((s, rank) => { repRank.set(s.item.ci, rank); repReversed.set(s.item.ci, s.reversed); });
     for (const st of railStations) {
+      if (!wlAllows(name, st.name)) continue; // 白名单外：并行线从旁经过的站，不吸附
       let best = null, bestRep = -1;
       for (const ci of repChains) {
         const proj = projectOnPolyline(st, chains[ci]);

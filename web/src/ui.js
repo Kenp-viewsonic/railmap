@@ -45,7 +45,7 @@ function applyFilters() {
 // ---- 线路列表（按城市分组 + 搜索） ----
 const listEl = document.getElementById('line-list');
 const searchEl = document.getElementById('line-search');
-const CITY_ORDER = ['上海', '苏州', '无锡', '常州', '南通', '嘉兴'];
+const CITY_ORDER = ['上海', '苏州', '无锡', '常州', '南通', '嘉兴', '杭州', '海宁', '多市'];
 
 function lineLabel(l) {
   const net = l.network.replace(/地铁|轨道交通|有轨电车|市域铁路|市域轨道交通/g, '');
