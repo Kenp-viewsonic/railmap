@@ -3,10 +3,21 @@ import mapboxgl from 'mapbox-gl';
 import { highlightRoute, clearHighlight } from './map.js';
 const { map, network } = window.__RAILMAP__;
 
-// 类别均速（km/h）与换乘耗时（分钟）
+// 类别商业旅速（km/h，含停站）—— 2026-10 用真实运营时刻校准：
+// 高铁 250→160（虹桥→苏州北模型 17min vs 真实 27min，-36%）；城际 160→110（-30%）；
+// 国铁 90→65（-25%）；市域 120→95（金山铁路 -18%）；磁浮 200→225（8min/30km）。
+// 均速是“含停站的全行程均速”，不是设计速度。
 const SPEED = {
-  highspeed: 250, intercity: 160, national: 90,
-  regional: 120, metro: 45, tram: 25, maglev: 200,
+  highspeed: 160, intercity: 110, national: 65,
+  regional: 95, metro: 44, tram: 25, maglev: 225,
+};
+// 线路级覆盖：地铁类别里的快线/市域铁路旅速显著高于普通地铁（站距大）。
+// 杭州16号线 54（35km/36min）、杭海城际 66（44km/40min）、上海16号线 68（55km/45min）、
+// 上海17号线 65（39km/33min）、机场联络线 75（51km/40min）。
+const LINE_SPEED = {
+  '杭州地铁|16': 54, '杭州地铁|杭海城际': 66,
+  '上海地铁|16': 68, '上海地铁|17': 65,
+  '上海市域铁路|市域机场线': 75,
 };
 const TRANSFER_MIN = {
   metro_metro: 5, any_metro: 8, national_any: 15, default: 8,
@@ -26,7 +37,7 @@ function ensureNode(key) {
 for (const e of network.edges) {
   const line = network.lines[e.lineId];
   if (!line) continue;
-  const speed = SPEED[line.category] || 45;
+  const speed = LINE_SPEED[line.key] || SPEED[line.category] || 44;
   const costMin = (e.distM / 1000) / speed * 60;
   const a = `${e.from}:${e.lineId}`;
   const b = `${e.to}:${e.lineId}`;
