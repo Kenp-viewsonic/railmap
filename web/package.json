@@ -1,0 +1,17 @@
+{
+  "name": "railmap-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node ../scripts/copy-dist.js && vite",
+    "build": "node ../scripts/copy-dist.js && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "mapbox-gl": "^3.7.0"
+  }
+}

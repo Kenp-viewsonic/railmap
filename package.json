@@ -1,0 +1,11 @@
+{
+  "name": "railmap",
+  "private": true,
+  "version": "0.1.0",
+  "description": "长三角8市轨道交通统一地图（高铁/国铁/城际/地铁/电车）",
+  "scripts": {
+    "fetch": "node scripts/fetch-osm.js",
+    "build": "node scripts/build-network.js",
+    "validate": "node scripts/validate.js"
+  }
+}

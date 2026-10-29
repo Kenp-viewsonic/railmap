@@ -1,0 +1,8 @@
+# data/raw 和构建产物都是机器生成的单行 JSON，禁止换行符转换，
+# 否则 Windows 检出后会在 git status 里出现全部文件"已修改"。
+data/**/*.json  -text
+web/public/data/*.json  -text
+
+# 文本文件统一按 LF 入库
+* text=auto eol=lf
+*.osm  -text

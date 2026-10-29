@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>长三角轨道交通图</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #map { width: 100%; height: 100%; }
+    body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; overflow: hidden; }
+
+    /* 通用面板 */
+    .panel {
+      position: absolute; z-index: 2;
+      background: rgba(255,255,255,.96); border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.18);
+      backdrop-filter: blur(8px); overflow: hidden;
+    }
+    .panel-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; cursor: pointer; user-select: none;
+    }
+    .panel-head h1, .panel-head h2 { font-size: 14px; flex: 1; }
+    .panel-head .toggle { font-size: 11px; color: #999; transition: transform .2s; }
+    .panel.collapsed .toggle { transform: rotate(-90deg); }
+    .panel-body { padding: 4px 14px 12px; max-height: calc(100vh - 140px); overflow-y: auto; }
+    .panel.collapsed .panel-body { display: none; }
+
+    /* 左侧：图例 + 线路列表 */
+    #panel { top: 12px; left: 12px; width: 250px; }
+    .cat-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; cursor: pointer; user-select: none; }
+    .cat-row .swatch { width: 20px; height: 5px; border-radius: 2px; flex-shrink: 0; }
+    .cat-row.off { opacity: .3; }
+    .cat-row .count { margin-left: auto; font-size: 11px; color: #999; }
+    #line-search {
+      width: 100%; padding: 6px 10px; margin: 8px 0 4px;
+      border: 1px solid #e0e0e0; border-radius: 8px; font-size: 12px; outline: none;
+    }
+    #line-search:focus { border-color: #1a73e8; }
+    #line-list { font-size: 12px; }
+    #line-list .group-title { font-size: 11px; color: #999; margin: 8px 0 2px; }
+    #line-list .line-item {
+      display: flex; align-items: center; gap: 7px; padding: 3px 6px;
+      border-radius: 6px; cursor: pointer;
+    }
+    #line-list .line-item:hover { background: rgba(0,0,0,.05); }
+    #line-list .line-item.focused { background: #e8f0fe; }
+    #line-list .line-item .dot {
+      width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+      border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.15);
+    }
+    #line-list .line-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* 右侧：路径规划 */
+    #planner { top: 12px; right: 12px; width: 300px; }
+    #planner .row { display: flex; gap: 6px; margin-bottom: 8px; }
+    #planner input {
+      flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid #e0e0e0;
+      border-radius: 8px; font-size: 13px; outline: none;
+    }
+    #planner input:focus { border-color: #1a73e8; }
+    #swap-btn {
+      border: 1px solid #e0e0e0; background: #fff; border-radius: 8px;
+      width: 34px; cursor: pointer; color: #666; font-size: 15px; flex-shrink: 0;
+    }
+    #swap-btn:hover { background: #f5f5f5; }
+    #plan-btn {
+      width: 100%; padding: 8px; border: none; border-radius: 8px; background: #1a73e8;
+      color: #fff; font-size: 13px; cursor: pointer; font-weight: 500;
+    }
+    #plan-btn:hover { background: #1765cc; }
+    #clear-btn {
+      padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fff;
+      color: #666; font-size: 13px; cursor: pointer; flex-shrink: 0;
+    }
+    #clear-btn:hover { background: #f5f5f5; color: #d84315; border-color: #d84315; }
+    #result { font-size: 12px; margin-top: 10px; }
+    #result .seg {
+      display: flex; gap: 8px; margin: 7px 0; padding: 2px;
+      align-items: stretch; cursor: pointer; border-radius: 6px;
+    }
+    #result .seg:hover { background: rgba(0,0,0,.05); }
+    #result .seg .bar { width: 4px; border-radius: 2px; flex-shrink: 0; }
+    #result .transfer { color: #d84315; font-size: 11px; margin: 5px 0 5px 12px; }
+    #result .total { font-weight: bold; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }
+    #result .note { color: #aaa; font-size: 10px; margin-top: 4px; }
+    #result .error { color: #d84315; }
+
+    /* 站点弹窗 */
+    .popup h3 { font-size: 14px; margin-bottom: 2px; }
+    .popup .sub { font-size: 11px; color: #999; margin-bottom: 6px; }
+    .popup .lines { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+    .popup .line-chip { font-size: 11px; color: #fff; padding: 2px 8px; border-radius: 9px; }
+    .popup .actions { display: flex; gap: 6px; }
+    .popup .actions button {
+      flex: 1; padding: 5px; font-size: 11px; border: 1px solid #ddd;
+      border-radius: 6px; background: #fff; cursor: pointer;
+    }
+    .popup .actions button:hover { background: #f0f6ff; border-color: #1a73e8; color: #1a73e8; }
+
+    /* 起终点标记 */
+    .endpoint-marker {
+      width: 24px; height: 24px; border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 11px; font-weight: bold;
+      box-shadow: 0 2px 6px rgba(0,0,0,.35);
+    }
+    .endpoint-marker span { transform: rotate(45deg); }
+
+    /* 移动端 */
+    @media (max-width: 640px) {
+      #panel { width: calc(100% - 24px); }
+      #planner { width: calc(100% - 24px); top: auto; bottom: 12px; }
+      .panel-body { max-height: 34vh; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="panel" class="panel">
+    <div class="panel-head"><h1>长三角轨道交通图</h1><span class="toggle">▼</span></div>
+    <div class="panel-body">
+      <div id="categories"></div>
+      <input id="line-search" placeholder="搜索线路…" />
+      <div id="line-list"></div>
+    </div>
+  </div>
+  <div id="planner" class="panel">
+    <div class="panel-head"><h2>路径规划</h2><span class="toggle">▼</span></div>
+    <div class="panel-body">
+      <div class="row">
+        <input id="from" placeholder="起点，如 花桥" list="stations" />
+        <button id="swap-btn" title="交换起终点">⇅</button>
+        <input id="to" placeholder="终点，如 苏州站" list="stations" />
+      </div>
+      <datalist id="stations"></datalist>
+      <div class="row"><button id="plan-btn">规划路线</button><button id="clear-btn" title="清除路线">✕</button></div>
+      <div id="result"></div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

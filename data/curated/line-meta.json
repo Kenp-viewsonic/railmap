@@ -1,0 +1,93 @@
+{
+  "_comment": "人工配置：网络过滤、线路类别映射、站名别名、期望线路清单。构建脚本按 name 是否包含 key 来匹配。",
+
+  "includeNetworkPatterns": [
+    "上海", "Shanghai", "松江", "磁浮", "Maglev",
+    "苏州", "Suzhou", "昆山", "Kunshan",
+    "无锡", "Wuxi", "常州", "Changzhou", "南通", "Nantong",
+    "嘉兴", "Jiaxing", "海宁", "杭海"
+  ],
+
+  "networkAliases": {},
+
+  "lineCategory": {
+    "金山铁路": "regional",
+    "金山支线": "regional",
+    "金山线": "regional",
+    "机场联络": "regional",
+    "磁浮": "regional",
+    "磁悬浮": "regional",
+    "杭海": "regional",
+    "市域": "regional"
+  },
+
+  "railCategories": {
+    "京沪高铁": "highspeed",
+    "沪苏湖高速线": "highspeed",
+    "沪渝蓉高速线": "highspeed",
+    "沪宁沿江高速线": "highspeed",
+    "盐通高速线": "highspeed",
+    "沪昆高速线": "highspeed",
+    "宁杭高速线": "highspeed",
+    "通苏嘉甬高速铁路": "highspeed",
+    "沪宁城际线": "intercity",
+    "沪宁城际虹桥联络线": "intercity",
+    "宁启线": "intercity",
+    "京沪线": "national",
+    "沪昆线": "national",
+    "新长线": "national",
+    "新长-沪宁铁路联结线": "national",
+    "沪苏通线": "national",
+    "沪春线": "national",
+    "赵甸联络线": "national",
+    "连镇线": "national",
+    "镇江联络线": "national",
+    "江宁联络线": "national",
+    "北杨线": "national",
+    "南何线": "national",
+    "南何立交线": "national",
+    "何杨线": "national",
+    "虹七线": "national",
+    "吴泾线": "national"
+  },
+
+  "categoryColours": {
+    "highspeed": "#E4002B",
+    "intercity": "#F39800",
+    "national": "#8B7355",
+    "regional": "#00838F",
+    "tram": "#7CB342",
+    "maglev": "#9C27B0"
+  },
+
+  "categoryPatterns": [
+    ["城际", "intercity"],
+    ["高速", "highspeed"],
+    ["高铁", "highspeed"]
+  ],
+
+  "mergeNamePatterns": [],
+
+  "aliases": [
+    ["虹桥火车站", "上海虹桥站"]
+  ],
+
+  "expectedLines": {
+    "上海地铁": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"],
+    "上海磁浮": ["磁浮线"],
+    "金山铁路": ["金山铁路"],
+    "机场联络线": ["机场联络线"],
+    "松江有轨电车": ["T1", "T2"],
+    "苏州轨道交通": ["1", "2", "3", "4", "5", "6", "7", "8", "11"],
+    "苏州有轨电车": ["T1", "T2"],
+    "无锡地铁": ["1", "2", "3", "4"],
+    "常州地铁": ["1", "2"],
+    "南通轨道交通": ["1", "2"],
+    "嘉兴有轨电车": ["T1"]
+  },
+
+  "expectedNational": [
+    "京沪高速", "沪宁城际", "沪苏湖", "宁杭", "沪杭高速",
+    "京沪铁路", "京沪线", "沪昆", "宁启", "新长", "沪苏通", "盐通"
+  ]
+}
